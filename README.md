@@ -1,20 +1,53 @@
-![WebXR Hands](./media/vr-hands.jpg "WebXR Hands")  
+![WebXR hands](./media/vr-hands.jpg "WebXR hands")  
 
 
-WebXR Hands
+WebXR hands
 ========================================================================
-This study is part of my “Three.js in a Hurry” collection—an effort 
-to help fellow spatial computing folks get up to speed quickly with 
-the [Three.js](https://threejs.org/) WebGL-based 3D rendering library. 
-This example contains a rotating 
-[torus knot](https://en.wikipedia.org/wiki/Torus_knot) inside a 
-[Cornell Box](https://en.wikipedia.org/wiki/Cornell_box) rendered live, 
-complete with interactive controls for adjusting various parameters. 
+👋 Ahoy.  
+  
+I’m [Stewart](https://stewartsmith.io).
+This demo illustrates the use of the
+[WebXR device hand input API](https://github.com/immersive-web/webxr-hand-input/blob/master/explainer.md)
+for hand and finger tracking,
+as tested on an
+[Oculus Quest](https://www.oculus.com/quest/)
+stand-alone headset.
+This experience is live at 
+[https://stewartsmith.io/studies/vr-hands/](https://stewartsmith.io/studies/vr-hands/).
+This code is open-source and available at
+[https://github.com/stewdio/vr-hands](https://github.com/stewdio/vr-hands).  
+  
+  
+If you have a Quest handy
+you’ll need to follow these steps before you can 
+experience the demo yourself:
 
+1. In Oculus **settings**
+enable automatic switching between regular hand controlles
+and bare hands.
 
-The code is clean, commented, and contains links to relevant 
-third-party documentation. This demonstration code is live at 
-[http://stewartsmith.io/studies/vr-hands/](http://stewartsmith.io/studies/vr-hands/).
+2. In the Oculus **browser**
+visit [chrome://flags/](chrome://flags/).
+
+3. Within the flags page, **enable** the 
+“WebXR experiences with joints tracking” flag
+(`#webxr-hands`).
+
+4. Within the flags page, **disable** 
+the “WebXR experiences with hands tracking” flag
+(`#webxr-hands-tracking`).
+Yes. _Disable_ it.
+We’re at that funny early stage of the technology where 
+things are not always what they seem.
+
+5. Restart the Oculus browser
+and visit this site again.
+Use your hand controllers 
+to click the “Enter VR” button.
+Once you are inside the experience put your controllers down,
+hold your hands out in front of you 
+so that the headset can see them,
+and enjoy! 😄
 
 
 
