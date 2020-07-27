@@ -1,7 +1,7 @@
-![WebXR hands](./media/vr-hands.gif "WebXR hands")  
+![WebXR finger guns](./media/vr-hands.gif "WebXR finger guns")  
 
 
-WebXR hands
+WebXR finger guns
 ========================================================================
 👋 Ahoy.  
   
