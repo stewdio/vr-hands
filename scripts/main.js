@@ -192,14 +192,16 @@ function setupContent() {
 
 	const floor = new THREE.Mesh( 
 
-		new THREE.PlaneBufferGeometry( 6, 6 ),
+		new THREE.CircleBufferGeometry( 4, 12 ),
 		new THREE.MeshStandardMaterial({
 		
-			color: 0xFFFFFF,
-			roughness: 1.0,
+			color: 0xFFEECC,
+			emissiveColor: 0x666666,
+			roughness: 0.2,
 			metalness: 1.0,
+			envMapIntensity: 1.0,
 			transparent: true,
-			opacity: 0.95
+			opacity: 1
 		})
 	)
 	floor.rotation.x = Math.PI / -2
@@ -207,18 +209,49 @@ function setupContent() {
 	scene.add( floor )
 
 
+	//  Environment map.
+	//  https://threejs.org/examples/webgl_materials_envmaps_exr.html
+	
+	const pmremGenerator = new THREE.PMREMGenerator( renderer )
+	pmremGenerator.compileCubemapShader()
+	THREE.DefaultLoadingManager.onLoad = function(){
+
+		pmremGenerator.dispose()
+	}
+	let cubeRenderTarget
+	new THREE.CubeTextureLoader()
+	.setPath( 'media/milkyway/' )
+	.load([ 
+
+		'dark-s_px.jpg', 
+		'dark-s_nx.jpg', 
+		'dark-s_py.jpg', 
+		'dark-s_ny.jpg', 
+		'dark-s_pz.jpg', 
+		'dark-s_nz.jpg' 
+	
+	], function( texture ){
+
+		texture.encoding = THREE.sRGBEncoding
+		const cubeRenderTarget = pmremGenerator.fromCubemap( texture )
+		floor.material.envMap = cubeRenderTarget.texture
+		floor.material.needsUpdate = true
+		texture.dispose()
+	})
+
+
 	//  Let there by light.
 
 	const light = new THREE.DirectionalLight( 0xFFFFFF )
-	light.position.set( 2, 4, 0 )
+	light.position.set( -2, 4, 0 )
 	light.castShadow = true
-	light.shadow.camera.top    =  2
-	light.shadow.camera.bottom = -2
-	light.shadow.camera.right  =  2
-	light.shadow.camera.left   = -2
-	light.shadow.mapSize.set( 1024, 1024 )
+	light.shadow.camera.top    =  4
+	light.shadow.camera.bottom = -4
+	light.shadow.camera.right  =  4
+	light.shadow.camera.left   = -4
+	light.shadow.mapSize.set( 2048, 2048 )
 	scene.add( light )
-	scene.add( new THREE.HemisphereLight( 0x886666, 0x446666 ))
+	scene.add( new THREE.AmbientLight( 0x888888 ))
 
 
 	//  Lensflare !
@@ -257,7 +290,7 @@ const hands = {
 		joints: [],
 		bones:  []
 	},
-	jointGeometry: new THREE.IcosahedronBufferGeometry( 1, 1 ),
+	jointGeometry: new THREE.BoxBufferGeometry( 1, 1, 1 ),
 	boneGeometry:  new THREE.CylinderGeometry( 0.005, 0.005, 0.1, 8 )
 }
 
@@ -286,16 +319,16 @@ hands.right = Object.assign( {}, hands.left, {
 	jointMaterialColor: 0xCC3300,
 	jointMaterial: new THREE.MeshStandardMaterial({
 
-		color: 0xCC3300,
-		roughness: 0.6,
-		metalness: 0.1
+		color: 0xFF3300,
+		roughness: 0,
+		metalness: 0
 	}),
 	boneMaterialColor: 0x990000,
 	boneMaterial: new THREE.MeshStandardMaterial({
 
-		color: 0x990000,
-		roughness: 0.6,
-		metalness: 0.1
+		color: 0xCC0000,
+		roughness: 0,
+		metalness: 0
 	})
 })
 Object.assign( hands.left, {
@@ -304,16 +337,16 @@ Object.assign( hands.left, {
 	jointMaterialColor: 0x00CC33,
 	jointMaterial: new THREE.MeshStandardMaterial({
 
-		color: 0x00CC33,
-		roughness: 0.6,
-		metalness: 0.1
+		color: 0x00FF33,
+		roughness: 0,
+		metalness: 0
 	}),
 	boneMaterialColor: 0x009900,
 	boneMaterial: new THREE.MeshStandardMaterial({
 
-		color: 0x009900,
-		roughness: 0.6,
-		metalness: 0.1
+		color: 0x00CC00,
+		roughness: 0,
+		metalness: 0
 	})
 })
 
@@ -553,15 +586,20 @@ function updateInputSources( session, frame, referenceSpace ){
 				const jointData = inputSource.hand[ mesh.jointIndex ]
 				if( jointData ){
 
+					// console.log( 'jointData', jointData )
 					const jointPose = frame.getJointPose( jointData, referenceSpace )
 					if( jointPose ){
 					
+						// console.log( 'jointPose', jointPose )
 						mesh.visible = true
 						mesh.position.copy( jointPose.transform.position )
 						mesh.position.y += params.userHeight//  Necessary?!?
 						mesh.quaternion.copy( jointPose.transform.orientation )
-						const radius = 0.007
-						mesh.scale.set( radius, radius, radius )
+						if( jointPose.radius ){
+
+							mesh.scale.setScalar( jointPose.radius * 2 )
+						}
+						else mesh.scale.setScalar( 0.015 )
 					}
 					else {
 
