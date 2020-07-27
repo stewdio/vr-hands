@@ -1,4 +1,4 @@
-![WebXR hands](./media/vr-hands.jpg "WebXR hands")  
+![WebXR hands](./media/vr-hands.gif "WebXR hands")  
 
 
 WebXR hands
