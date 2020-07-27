@@ -81,7 +81,8 @@ function Bolt( scene, hand, controller, rotation ){
 	// this.position.sub( M.three.world.getWorldPosition() )
 	// this.position.add( player.velocity )//  Quick fix.
 	// this.position.add( this.getWorldDirection( new THREE.Vector3() ).normalize().multiplyScalar( Bolt.shotLength / -2 ))
-	this.position.add( this.getWorldDirection( new THREE.Vector3() ).normalize().multiplyScalar( Bolt.shotLength * -0.37 ))
+	// this.position.add( this.getWorldDirection( new THREE.Vector3() ).normalize().multiplyScalar( Bolt.shotLength * -0.37 ))
+	this.position.add( this.getWorldDirection( new THREE.Vector3() ).normalize().multiplyScalar( Bolt.shotLength * -0.5 ))
 	this.scene = scene
 	scene.add( this )
 
@@ -103,7 +104,7 @@ function Bolt( scene, hand, controller, rotation ){
 	//  direction relative to the hand controller.
 
 	this.positionVelocity = this.getWorldDirection( new THREE.Vector3() ).normalize().multiplyScalar( -Bolt.speed )
-
+	this.wait = 2
 
 	//  Oh, but what about our player’s velocity?!
 
@@ -165,7 +166,14 @@ Bolt.prototype.update = function( timeDelta ){
 	//  We’re not going to destroy a rock so we might as well make
 	//  our move forward in space official.
 
-	this.position.add( positionDelta )
+	if( this.wait > 0 ){
+
+		this.wait --
+	}
+	else {
+
+		this.position.add( positionDelta )
+	}
 	this.children[ 0 ].rotation.y -= 0.15
 
 
