@@ -140,7 +140,7 @@ function setupThree(){
 	
 		renderer.xr.onSessionStartedCallback = function( session ){
 
-			if( params.shouldPrepareHands ) setupHands()
+			if( params.shouldPrepareHands ) setupHandMeshes()
 			
 			session
 			.requestReferenceSpace( 'local' )
@@ -154,6 +154,28 @@ function setupThree(){
 			})
 		}
 	}
+
+
+	//  Our old standby, window.requestAnimationFrame()
+	//  attempts to execute at 60 frames per second.
+	//  But we can only use this for normal 2D screen presentations.
+	//  https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame
+	
+	//  Meanwhile, when we enter VR we must instead use 
+	//  VRDisplay.requestAnimationFrame()
+	//  which attempts to execute at 90 frames per second.
+	//  https://developer.mozilla.org/en-US/docs/Web/API/VRDisplay/requestAnimationFrame
+	
+	//  So that’s two different methods to call,
+	//  and two different frame rates.
+	//  Three.js now abstracts that all away 
+	//  with its (relatively) new renderer.setAnimationLoop().
+	//  Just pass it your main animation function
+	//  and it will pass two arguments to it:
+	//  the current clock time and the XR frame data.
+	//  https://threejs.org/docs/#api/en/renderers/WebGLRenderer.setAnimationLoop
+	//  https://threejs.org/docs/#manual/en/introduction/How-to-create-VR-content
+	
 	renderer.setAnimationLoop( loop )
 }
 
@@ -173,6 +195,11 @@ function setupContent() {
 
 
 	//  Milky Way galaxy background. 
+	//  These texture are included this Three VR demo:
+	//  https://threejs.org/examples/#webxr_vr_sandbox
+	//  https://threejs.org/docs/#api/en/loaders/CubeTextureLoader
+	//  Note that CubeTextureLoader is a form of Loader:
+	//  https://threejs.org/docs/#api/en/loaders/Loader
 
 	const background = new THREE.CubeTextureLoader()
 	.setPath( 'media/milkyway/' )
@@ -185,14 +212,31 @@ function setupContent() {
 		'dark-s_pz.jpg', 
 		'dark-s_nz.jpg' 
 	])
+
+
+	//  Now we can set the Milky Way as our scene’s background.
+
 	scene.background = background
 
 
-	//  Something to “stand” on in space.
+	//  Let’s create a circular platform to “stand” on in space.
+	//  To create a 3D “thing” we must create a “Mesh”:
+	//  https://threejs.org/docs/#api/en/objects/Mesh
 
-	const floor = new THREE.Mesh( 
+	const platform = new THREE.Mesh( 
+
+		//  Every Mesh needs geometry; a collection of 3D points to use.
+		//  For this platform we’ll use some pre-defined geometry
+		//  that describes a circle:
+		//  https://threejs.org/docs/#api/en/geometries/CircleBufferGeometry
 
 		new THREE.CircleBufferGeometry( 4, 12 ),
+
+		//  For this Mesh we’ll use the “MeshStandardMaterial”.
+		//  https://threejs.org/docs/#api/en/materials/MeshStandardMaterial
+		//  This Material uses “Physically based rendering” (PBR).
+		//  https://en.wikipedia.org/wiki/Physically_based_rendering
+
 		new THREE.MeshStandardMaterial({
 		
 			color: 0xFFEECC,
@@ -204,9 +248,30 @@ function setupContent() {
 			opacity: 1
 		})
 	)
-	floor.rotation.x = Math.PI / -2
-	floor.receiveShadow = true
-	scene.add( floor )
+
+	
+	//  In Three.js all flat 2D shapes are drawn vertically.
+	//  This means that for any 2D shape 
+	//  that we’d like to use as a floor,
+	//  we  must rotate it 90 degrees (π ÷ 2 radians)
+	//  so that it is horizontal rather than vertical.
+	//  Here, we’ll rotate negatively (π ÷ -2 radians)
+	//  so the visible surface ends up on top.
+	
+	platform.rotation.x = Math.PI / -2
+
+
+	//  By default meshes do not receive shadows.
+	// (This keeps rendering speedy!)
+	//  So we must turn on shadow reception manually.
+	
+	platform.receiveShadow = true
+
+
+	//  And we want our platform to actually exist in our world
+	//  so we must add it to our scene.
+
+	scene.add( platform )
 
 
 	//  Environment map.
@@ -234,13 +299,15 @@ function setupContent() {
 
 		texture.encoding = THREE.sRGBEncoding
 		const cubeRenderTarget = pmremGenerator.fromCubemap( texture )
-		floor.material.envMap = cubeRenderTarget.texture
-		floor.material.needsUpdate = true
+		platform.material.envMap = cubeRenderTarget.texture
+		platform.material.needsUpdate = true
 		texture.dispose()
 	})
 
 
 	//  Let there by light.
+	//  Directional lights create parallel light rays.
+	//  https://threejs.org/docs/#api/en/lights/DirectionalLight
 
 	const light = new THREE.DirectionalLight( 0xFFFFFF )
 	light.position.set( -2, 4, 0 )
@@ -255,6 +322,8 @@ function setupContent() {
 
 
 	//  Lensflare !
+	//  These textures come from the Three.js repository.
+	//  https://threejs.org/docs/#examples/en/objects/Lensflare
 
 	const 
 	loader    = new THREE.TextureLoader(),
@@ -283,6 +352,11 @@ function setupContent() {
 ///////////////
 
 
+//  Let’s begin by creating a “hands” object
+//  and within that a “left” hand.
+//  Later we’ll create a “right” hand
+//  by cloning the “left” object.
+
 const hands = {
 
 	left:  {
@@ -296,13 +370,16 @@ const hands = {
 
 
 //  Add some gesture flags.
+//  This enables us to document the state of our hands
+//  such as hands.left.isPointGesture,
+//  or hands.right.wasShootGesture, etc.
 
 ;[ 
 
 	'Fist',
+	'L',
 	'Pinch',
-	'Point',
-	'Shoot'
+	'Point'
 	
 ].forEach( function( gesture ){
 
@@ -311,7 +388,9 @@ const hands = {
 })
 
 
-
+//  Now we can create our “right” hand
+//  by cloning the “left” hand
+//  and also adding right-hand-specific properties.
 
 hands.right = Object.assign( {}, hands.left, {
 
@@ -331,6 +410,15 @@ hands.right = Object.assign( {}, hands.left, {
 		metalness: 0
 	})
 })
+
+
+//  Great. We have a fully fleshed out “right” hand.
+//  But we hadn’t added and left-hand-specific properties
+//  to our “left” hand yet
+//  because we wanted to clone it to create the “right”.
+//  We’ve done that now,
+//  so it’s safe to add left-hand-specific properties.
+
 Object.assign( hands.left, {
 
 	name: 'Left',
@@ -353,12 +441,18 @@ Object.assign( hands.left, {
 
 
 
-function setupHands(){
+function setupHandMeshes(){
 	
 
 	//  For both hands
 	//  let’s make sure we remove any existing
 	//  bones or joints.
+	//  Not how easy it is in JavaScript to say 
+	// “do this action for multiple things” using Arrays.
+	//  We stick a semicolon in front as good practice
+	//  to ensure that our raw Array
+	//  is not interpreted as an object property reference.
+	//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
 
 	;[ hands.left, hands.right ]
 	.forEach( function( hand ){
@@ -366,6 +460,9 @@ function setupHands(){
 
 		//  We must remove bone and joint meshes
 		//  from our THREE scene.
+		//  We can just scoop up booth Arrays
+		//  and operate on them together with concat().
+		//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/concat
 
 		hand.bones
 		.concat( hand.joints )
@@ -414,8 +511,7 @@ function setupHands(){
 	}
 
 
-	//  Create a mesh for each hand joint
-	//  and a mesh for each bone joint.
+	//  Create a mesh for each hand joint.
 
 	for( 
 
@@ -427,14 +523,17 @@ function setupHands(){
 		createJointMesh( hands.left,  i )
 		createJointMesh( hands.right, i )
 	}
+
+
+	//  We’ll come back to the joinConnections problem later.
+	//  For now it’s incomplete and disabled.
+
 	// for( const connection of jointConnections ){
 		
 		// createBoneMesh( hands.left,  i )
 		// createBoneMesh( hands.right, i )
 	// }
 }
-
-
 
 
 
@@ -446,11 +545,10 @@ function setupHands(){
 	then once that is functional I can expand my thinking. 
 
 
-
-	https://github.com/immersive-web/webxr-hand-input/blob/master/explainer.md#appendix-proposed-idl
-
+	Here’s the index map of joints provided by the WebXR Hand API.
 	Note that the metacarpals for index, middle, and ring
-	all return NULL instead  of jointPoses!!
+	all return NULL instead of jointPoses!!
+	https://github.com/immersive-web/webxr-hand-input/blob/master/explainer.md#appendix-proposed-idl
 
 	 0 : WRIST
 	 1 : THUMB_METACARPAL
@@ -485,13 +583,43 @@ X	15 : RING_METACARPAL
 */
 function isFistGesture( hand ){
 
-	/*
 
+	//  We will consider a fist to be
+	//  all fingers curled inward such that
+	//  the finger tips are somewhat close
+	//  to the base of the finger
+	//  and the thumb tip is near the
+	//  middle middle finger’s intermediate joint.
+	//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce
 
-	all fingers are curled inward
-	and thumb tip is nearr middle intermediate.
+	//  THESE VALUES AREN’T VERY GOOD.
+	//  Will require more experimenting
+	//  and possibly a different definition of a fist.
 
-	*/
+	return [ 
+
+		'INDEX',
+		'MIDDLE',
+		'RING',
+		'LITTLE'
+
+	].reduce( function( status, fingerName ){
+
+		return status && (
+
+			hand.joints[ fingerName +'_PHALANX_TIP' ].position
+			.distanceTo(
+
+				hand.joints[ fingerName +'_PHALANX_PROXIMAL' ].position
+			
+			) < 0.04
+		)
+	}, true ) &&
+	hand.joints[ 'THUMB_PHALANX_TIP' ].distanceTo(
+
+		hand.joints[ 'MIDDLE_PHALANX_INTERMEDIATE' ]
+
+	) < 0.03
 }
 function isPinchGesture( hand ){
 	
@@ -500,9 +628,9 @@ function isPinchGesture( hand ){
 	thumbTip = hand.joints[ XRHand.THUMB_PHALANX_TIP ],
 	distance = indexTip.position.distanceTo( thumbTip.position )
 	
-	return distance < 0.02
+	return distance < 0.03
 }
-function isPointGesture( hand ){
+function isLGesture( hand ){
 
 	return (
 
@@ -540,7 +668,7 @@ function isPointGesture( hand ){
 		) < 0.06
 	)
 }
-function isShootGesture( hand ){
+function isPointGesture( hand ){
 
 
 	//  Is a pointing gesture AND
@@ -549,7 +677,7 @@ function isShootGesture( hand ){
 
 	return (
 
-		isPointGesture( hand ) &&
+		isLGesture( hand ) &&
 		hand.joints[ XRHand.THUMB_PHALANX_TIP ].position
 		.distanceTo(
 
@@ -567,6 +695,7 @@ function updateInputSources( session, frame, referenceSpace ){
 	for( let inputSource of session.inputSources ){
 		/*
 
+		Here’s a sample inputSource object:
 		{			
 			gamepad: null,
 			gripSpace: null,
@@ -580,8 +709,8 @@ function updateInputSources( session, frame, referenceSpace ){
 		*/
 		if( inputSource.hand ){
 
-			let visible = false
-			hands[ inputSource.handedness ].joints.forEach( function( mesh ){
+			hands[ inputSource.handedness ].joints
+			.forEach( function( mesh ){
 				
 				const jointData = inputSource.hand[ mesh.jointIndex ]
 				if( jointData ){
@@ -601,15 +730,12 @@ function updateInputSources( session, frame, referenceSpace ){
 						}
 						else mesh.scale.setScalar( 0.015 )
 					}
-					else {
-
-						mesh.visible = false
-					}
+					else mesh.visible = false
 				}
 				else mesh.visible = false
 			})
-		}
-	}
+		}//  if( inputSource.hand )
+	}//  for( let inputSource of session.inputSources )
 }
 
 
@@ -640,13 +766,83 @@ function loop( timeNow, frame ){
 			;[ hands.left, hands.right ]
 			.forEach( function( hand ){
 
-				hand.isShootGesture = isShootGesture( hand )
-				if( hand.isShootGesture ){
 
-					if( !hand.wasShootGesture ){
+				//  NOTE. The following code is pretty repetitive.
+				//  Probably a good idea to create custom events instead.
+				//  That way you can do something onBegan or onEnded.
 
+
+				//  Fist gesture.
+
+				hand.isFistGesture = isPinchGesture( hand )
+				if( hand.isFistGesture ){
+
+					if( !hand.wasFistGesture ){
+
+						console.log( 'Fist gesture began.' )
+						//  Your custom code here!
+						hand.wasFistGesture = true
+					}
+				}
+				else if( hand.wasFistGesture ){
+
+					console.log( 'Fist gesture ended.' )
+					//  Your custom code here!
+					hand.wasFistGesture = false
+				}
+
+
+				//  L gesture.
+
+				hand.isLGesture = isLGesture( hand )
+				if( hand.isLGesture ){
+
+					if( !hand.wasLGesture ){
+
+						console.log( 'L gesture began.' )
+						//  Your custom code here!
+						hand.wasLGesture = true
+					}
+				}
+				else if( hand.wasLGesture ){
+
+					console.log( 'L gesture ended.' )
+					//  Your custom code here!
+					hand.wasLGesture = false
+				}
+
+
+				//  Pinch gesture.
+
+				hand.isPinchGesture = isPinchGesture( hand )
+				if( hand.isPinchGesture ){
+
+					if( !hand.wasPinchGesture ){
+
+						console.log( 'Pinch gesture began.' )
+						//  Your custom code here!
+						hand.wasPinchGesture = true
+					}
+				}
+				else if( hand.wasPinchGesture ){
+
+					console.log( 'Pinch gesture ended.' )
+					//  Your custom code here!
+					hand.wasPinchGesture = false
+				}
+
+
+				//  Point gesture.
+				//  This is our main interest here.
+
+				hand.isPointGesture = isPointGesture( hand )
+				if( hand.isPointGesture ){
+
+					if( !hand.wasPointGesture ){
+
+						console.log( 'Point gesture began.' )
 						hand.jointMaterial.color.setHex( 0xFFCC00 )						
-						hand.wasShootGesture = true
+						hand.wasPointGesture = true
 					}
 					const bolt = new Bolt( scene, hand, hand.joints[ XRHand.WRIST ], 0 )
 					if( bolt ){
@@ -654,10 +850,11 @@ function loop( timeNow, frame ){
 						// console.log( 'Shots fired!' )
 					}
 				}
-				else if( hand.wasShootGesture ){
+				else if( hand.wasPointGesture ){
 
+					console.log( 'Point gesture ended.' )
 					hand.jointMaterial.color.setHex( hand.jointMaterialColor )
-					hand.wasShootGesture = false
+					hand.wasPointGesture = false
 				}
 			})
 		}
@@ -692,7 +889,7 @@ window.addEventListener( 'DOMContentLoaded', function(){
 
 	setupThree()
 	setupContent()
-	setupHands()	
+	// setupHandMeshes()
 	console.log( 'hands', hands )
 })
 
