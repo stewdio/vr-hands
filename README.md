@@ -12,9 +12,10 @@ for hand and finger tracking,
 as tested on an
 [Oculus Quest](https://www.oculus.com/quest/)
 stand-alone headset.
-Make your hand into a “finger gun” 
+Make your hand into a “finger gun” shape
 then tap your thumb down 
-to shoot lasers from your index finger.
+onto your middle finger
+to shoot lasers from your hand.
 This experience is live at 
 [https://stewartsmith.io/studies/vr-hands/](https://stewartsmith.io/studies/vr-hands/).
 This code is open-source and available at
