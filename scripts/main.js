@@ -20,7 +20,6 @@ import { Bolt } from './third-party/SpaceRocks/Bolt.js'
 
 
 
-
 //  Some toggles and values I’ve been toying with.
 
 const params = {
@@ -225,12 +224,14 @@ function setupContent() {
 
 	const platform = new THREE.Mesh( 
 
+
 		//  Every Mesh needs geometry; a collection of 3D points to use.
 		//  For this platform we’ll use some pre-defined geometry
 		//  that describes a circle:
 		//  https://threejs.org/docs/#api/en/geometries/CircleBufferGeometry
 
 		new THREE.CircleBufferGeometry( 4, 12 ),
+
 
 		//  For this Mesh we’ll use the “MeshStandardMaterial”.
 		//  https://threejs.org/docs/#api/en/materials/MeshStandardMaterial
