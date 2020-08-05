@@ -8,7 +8,7 @@ import * as THREE from './third-party/Three/three.module.js'
 
 
 //  👋 Introducing Handy.js — 
-//  a tiny shim to make defining and using hand shapes in #WebXR easy! 
+//  a tiny shim to make defining and using hand shapes in WebXR easy! 
 //  Built with Three.js and tested on the Oculus Quest. 
 //  Handy creates boolean flags and events for your defined hand shapes.
 
@@ -78,7 +78,7 @@ const Handy = {
 	//  onto the Handy{} object like so:
 	//  Handy.INDEX_PHALANX_INTERMEDIATE === 7.
 	//  This exactly mirrors XRHand:
-	//  Handy.INDEX_PHALANX_INTERMEDIATE === Handy.INDEX_PHALANX_INTERMEDIATE.
+	//  Handy.INDEX_PHALANX_INTERMEDIATE === XRHand.INDEX_PHALANX_INTERMEDIATE.
 
 	jointNames: [
 
