@@ -20,7 +20,7 @@ const Handy = {
 	//  Do we want to throttle the amount that we
 	//  actually perform shape checks?
 	//  Do we REALLY need to check for a hand shape 
-	//  every single frame as perhaps 90 fps?
+	//  every single frame at perhaps 90 fps?
 	//  Probably not. So let’s define time duration
 	//  in SECONDS to wait between performing checks. 
 	//  This throttle is PER HAND.
@@ -29,7 +29,6 @@ const Handy = {
 	//  at the very beginning of the Handy definition
 	//  so it’s easy for you to locate, alter,
 	//  and experiment with.
-
 
 	throttleDuration: 0.1,
 
