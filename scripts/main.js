@@ -4,8 +4,15 @@
 
 
 
+//  So you’re diving into JavaScript, eh?
+//  Here’s a quick start guide to the language:
+//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types
+
+
+
+
 //  JavaScript modules. 
-//  As of May 2020, Three is officially moving to modules and deprecating
+//  As of May 2020, Three.js is officially moving to modules and deprecating
 //  their old non-module format. I think that’s a bummer because now you
 //  MUST run a server in order to play with the latest Three code -- even
 //  for the simplest examples. Such is progress?
@@ -14,20 +21,13 @@
 import * as THREE from './third-party/Three/three.module.js'
 import { OrbitControls } from './third-party/Three/OrbitControls.js'
 import { VRButton } from './third-party/Three/VRButton.js'
+import { XRControllerModelFactory } from './third-party/Three/XRControllerModelFactory.js';
+import { XRHandModelFactory } from './third-party/Three/XRHandModelFactory.js'
+import { XRHandPrimitiveModel } from './third-party/Three/XRHandPrimitiveModel.js'
 import { Lensflare, LensflareElement } from './third-party/Three/Lensflare.js'
 import { Bolt } from './third-party/SpaceRocks/Bolt.js'
-
-
-
-
-//  Some toggles and values I’ve been toying with.
-
-const params = {
-
-	shouldPrepareVR:    true,
-	shouldPrepareHands: true,
-	userHeight: 1.65//  In meters of course.
-}
+import { Handy } from './Handy.js'
+import Stats from './third-party/Three/stats.module.js'
 
 
 
@@ -50,8 +50,7 @@ camera,
 scene,
 renderer,
 controls,
-xrReferenceSpace
-
+stats
 
 function setupThree(){
 
@@ -70,7 +69,8 @@ function setupThree(){
 	fieldOfView = 75,
 	aspectRatio = window.innerWidth / window.innerHeight,
 	near = 0.01,
-	far  = 1000
+	far  = 1000,
+	userHeight = 1.65
 
 	camera = new THREE.PerspectiveCamera( 
 		
@@ -79,14 +79,13 @@ function setupThree(){
 		near,
 		far 
 	)
-	camera.position.set( 0, params.userHeight, 6 )
+	camera.position.set( 0, userHeight, 6 )
 
 	
 	//  Scene.
 	//  https://threejs.org/docs/#api/en/scenes/Scene
 
 	scene = new THREE.Scene()
-	scene.background = new THREE.Color( 0x666666 )
 	scene.add( camera )
 
 
@@ -94,7 +93,6 @@ function setupThree(){
 	//  https://threejs.org/docs/#api/en/renderers/WebGLRenderer
 
 	renderer = new THREE.WebGLRenderer({ antialias: true })
-	renderer.autoClear = false
 	renderer.setPixelRatio( window.devicePixelRatio )
 	renderer.setSize( window.innerWidth, window.innerHeight )
 	renderer.shadowMap.enabled = true
@@ -102,11 +100,8 @@ function setupThree(){
 	renderer.physicallyCorrectLights = true
 	renderer.toneMapping = THREE.ACESFilmicToneMapping
 	renderer.outputEncoding = THREE.sRGBEncoding
-	if( params.shouldPrepareVR ){
-	
-		renderer.xr.enabled = true
-		container.appendChild( VRButton.createButton( renderer ))
-	}
+	renderer.xr.enabled = true
+	container.appendChild( VRButton.createButton( renderer ))
 	container.appendChild( renderer.domElement )
 
 
@@ -114,7 +109,7 @@ function setupThree(){
 	//  https://threejs.org/docs/#examples/en/controls/OrbitControls
 	
 	controls = new OrbitControls( camera, renderer.domElement )
-	controls.target.set( 0, params.userHeight, 0 )
+	controls.target.set( 0, userHeight, 0 )
 	controls.update()
 
 
@@ -131,28 +126,11 @@ function setupThree(){
 	}, false )
 
 
-	//  I made these quick toggles for easy trouble shooting
-	//  as I kept crashing the Oculus browser and had to do
-	//  a lot of investigating.
+	//  Performance statistics.
+	//  https://github.com/mrdoob/stats.js/
 
-	if( params.shouldPrepareVR ){
-	
-		renderer.xr.onSessionStartedCallback = function( session ){
-
-			if( params.shouldPrepareHands ) setupHandMeshes()
-			
-			session
-			.requestReferenceSpace( 'local' )
-			.then( function( referenceSpace ){
-			
-				xrReferenceSpace = referenceSpace
-				.getOffsetReferenceSpace(
-
-					new XRRigidTransform({ x: 0, y: params.userHeight, z: 0 })
-				)
-			})
-		}
-	}
+	stats = new Stats()
+	document.body.appendChild( stats.domElement )
 
 
 	//  Our old standby, window.requestAnimationFrame()
@@ -174,8 +152,274 @@ function setupThree(){
 	//  the current clock time and the XR frame data.
 	//  https://threejs.org/docs/#api/en/renderers/WebGLRenderer.setAnimationLoop
 	//  https://threejs.org/docs/#manual/en/introduction/How-to-create-VR-content
+
+	//  Also -- notice how we have not defined ‘loop’ yet.
+	//  Thanks to JavaScript variable hoisting
+	//  our ‘loop’ function will be available here ;)
+	//  https://developer.mozilla.org/en-US/docs/Glossary/Hoisting
 	
 	renderer.setAnimationLoop( loop )
+}
+
+
+
+
+
+
+    ///////////////
+   //           //
+  //   Hands   //
+ //           //
+///////////////
+
+
+//  Let’s assign these variables to the GLOBAL SCOPE
+//  so it’s easy to inspect them from the JavaScript console.
+//  We do this by assigning them as properties to window{}.
+//  If we weren’t using JavaScript modules 
+//  then anything we declare in this file’s outer most scope
+//  would already be attached to window{}.
+//  https://developers.google.com/web/tools/chrome-devtools/console/javascript
+//  https://javascript.info/devtools
+
+window.controllers = {
+
+	left:  {},
+	right: {}
+}
+
+
+//  We also need the same left / right objects 
+//  for the following bits,
+//  but why repeat yourself in code?
+//  Instead we’ll just clone the controllers object.
+//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
+
+window.controllerGrips = Object.assign( {}, controllers )
+window.hands = Object.assign( {}, controllers )
+
+
+//  Also -- why not?
+//  Don’t you want to explore this in the console too?
+
+window.Handy = Handy
+
+
+//  We’re about to setup controllers, controller grips, and hands
+//  from the renderer -- and also load some hand models.
+//  Those aspects are based on these Three.js demos:
+//  https://threejs.org/examples/webxr_vr_handinput.html
+//  https://threejs.org/examples/webxr_vr_handinput_cubes.html
+//  https://threejs.org/examples/webxr_vr_handinput_profiles.html
+
+function setupHands(){
+
+
+	//  We’re about to set up HANDS,
+	//  so what’s this about ‘controllers’?
+	//  You might describe this as our simplest endeavor.
+	//  Just positions in 3D space
+	//  and ray beams extending outward for aim.
+
+	//  Also, it’s worth being very comfortable 
+	//  with ‘raw’ Array literals
+	//  and with an Array’s map() function.
+	//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/map
+
+	;[ controllers.left, controllers.right ] = 
+	 [ controllers.left, controllers.right ]
+	.map( function( controller, i ){
+
+		controller = renderer.xr.getController( i )
+		controller.add( new THREE.Line( 
+
+			new THREE.BufferGeometry().setFromPoints([ 
+
+				new THREE.Vector3( 0, 0,  0 ), 
+				new THREE.Vector3( 0, 0, -5 )
+			]) 
+		))
+		scene.add( controller )
+
+		return controller
+	})
+
+
+	//  Now let’s get a little fancier.
+	//  Instead of just positions in 3D space,
+	//  these are actual controller visuals!
+	// (A model will be fetched from a CDN.)
+	//  https://en.wikipedia.org/wiki/Content_delivery_network
+
+	const controllerModelFactory = new XRControllerModelFactory()
+	;[ controllerGrips.left, controllerGrips.right ] = 
+	 [ controllerGrips.left, controllerGrips.right ]
+	.map( function( controllerGrip ){
+
+		controllerGrip = renderer.xr.getControllerGrip( 0 )
+		controllerGrip.add( controllerModelFactory.createControllerModel( controllerGrip ))
+		scene.add( controllerGrip )
+
+		return controllerGrip
+	})
+
+
+	//  And here we go -- time for virtual reality hands!!
+	//  These models are not hosted on a CDN,
+	//  they’re included right in this code package.
+
+	const 
+	handModelFactory = new XRHandModelFactory().setPath( './media/hands/' ),
+	cycleHandModel = function( event ){
+
+		const hand = event.hand
+		console.log(
+
+			'Cycling the hand model for the',
+			 hand.handedness.toUpperCase(),
+			'hand.'
+		)
+		hand.models.forEach( function( model ){
+
+			model.visible = false
+		})
+		hand.modelIndex = ( hand.modelIndex + 1 ) % hand.models.length
+		hand.models[ hand.modelIndex ].visible = true
+	}
+
+	;[ hands.left, hands.right ] = 
+	 [ hands.left, hands.right ]
+	.map( function( hand, i ){
+
+
+		//  THREE.Renderer now wraps all of this complexity
+		//  so you don’t have to worry about it!
+		//  getHand() returns an empty THREE.Group instance
+		//  that you can immediately add to your scene.
+
+		hand = renderer.xr.getHand( i )
+		scene.add( hand )
+
+
+		//  This still seems shaky to me.
+		//  What assurance do we have that 0 == left
+		//  and 1 == right?
+		// (Recall Vive controllers had the potential to swap!)
+		//  Note this very terse conditional operator here.
+		//  It’s made of a ‘?’ and ‘:’ and called a ternary operator:
+		//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Conditional_Operator
+
+		hand.handedness = i ? 'right' : 'left'
+		console.log( 'Creating', hand.handedness.toUpperCase(), 'hand.' )
+
+
+		//  So far we have an abstract model of a hand
+		//  but we don’t have a VISUAL model of a hand!
+		//  Let’s load four different visual models:
+		//
+		//      1 - A cube for each joint.
+		//      2 - A sphere for each joint.
+		//      3 - Low poly hand model.
+		//      4 - High poly hand model.
+		//
+		//  Our intent is to display one at a time,
+		//  allowing the user to cycle through them
+		//  by making a fist.
+
+		hand.models = [
+
+			handModelFactory.createHandModel( hand, 'boxes' ),
+			handModelFactory.createHandModel( hand, 'spheres' ),
+			handModelFactory.createHandModel( hand, 'oculus', { model: 'lowpoly' }),
+			handModelFactory.createHandModel( hand, 'oculus' )
+		]
+		hand.models.forEach( function( model ){
+
+			hand.add( model )
+			model.visible = false
+		})
+		hand.modelIndex = 0
+		hand.models[ hand.modelIndex ].visible = true
+
+
+		//  This is what makes detecting hand shapes easy!
+		//  It updates boolean flags for hand shape statuses
+		//  and fires events as well :)
+
+		Handy.makeHandy( hand )
+		
+
+		//  Speaking of events, here’s how easy it is
+		//  to listen to our custom hand shapes:
+
+		hand.addEventListener( 'fist shape began', cycleHandModel )
+
+
+		return hand
+	})
+
+
+	//  Woa ho ho. Look at this last-minute addition.
+	//  Make your hand into a “devil horns” shape
+	//  to switch between default and hand-specific color.
+
+	const defaultColor = new THREE.Color( 0xFFFFFF )
+	hands.left.color   = new THREE.Color( 0x00FF00 )
+	hands.right.color  = new THREE.Color( 0xFF0000 )
+	;[ hands.left, hands.right ].forEach( function( hand ){
+		
+		hand.isDefaultColor = true
+		hand.addEventListener( 'devil shape began', function(){
+
+			hand.traverse( function( obj ){
+
+				if( obj.material ){
+
+					obj.material.color = hand.isDefaultColor ? hand.color : defaultColor
+				}
+			})
+			hand.isDefaultColor = !hand.isDefaultColor
+		})
+	})
+
+
+	//  This code block here is just to demonstrate
+	//  listening for every hand shape defined in Handy.
+	//  It’s a nice gut check to ensure everything works.
+
+	;[ hands.left, hands.right ].forEach( function( hand ){
+
+		console.log( 
+
+			'Adding event listeners for the', 
+			 hand.handedness.toUpperCase(), 
+			'hand...'
+		)
+		Handy.shapeNames
+		.forEach( function( shapeName ){
+
+			console.log( 
+
+				'  Adding event listeners for the', 
+				 shapeName, 
+				'hand shape.'
+			)
+			const response = function( event ){
+
+				console.log( '👋', event.message )
+			}
+			hand.addEventListener( 
+
+				shapeName.toLowerCase() +' shape began',
+				response
+			)
+			hand.addEventListener( 
+
+				shapeName.toLowerCase() +' shape ended',
+				response
+			)
+		})
+	})
 }
 
 
@@ -241,7 +485,6 @@ function setupContent() {
 		new THREE.MeshStandardMaterial({
 		
 			color: 0xFFEECC,
-			emissiveColor: 0x666666,
 			roughness: 0.2,
 			metalness: 1.0,
 			envMapIntensity: 1.0,
@@ -277,7 +520,7 @@ function setupContent() {
 
 	//  Environment map.
 	//  https://threejs.org/examples/webgl_materials_envmaps_exr.html
-	
+	/*
 	const pmremGenerator = new THREE.PMREMGenerator( renderer )
 	pmremGenerator.compileCubemapShader()
 	THREE.DefaultLoadingManager.onLoad = function(){
@@ -304,7 +547,7 @@ function setupContent() {
 		platform.material.needsUpdate = true
 		texture.dispose()
 	})
-
+	*/
 
 	//  Let there by light.
 	//  Directional lights create parallel light rays.
@@ -346,404 +589,6 @@ function setupContent() {
 
 
 
-    ///////////////
-   //           //
-  //   Hands   //
- //           //
-///////////////
-
-
-//  Let’s begin by creating a “hands” object
-//  and within that a “left” hand.
-//  Later we’ll create a “right” hand
-//  by cloning the “left” object.
-
-const hands = {
-
-	left:  {
-
-		joints: [],
-		bones:  []
-	},
-	jointGeometry: new THREE.BoxBufferGeometry( 1, 1, 1 ),
-	boneGeometry:  new THREE.CylinderGeometry( 0.005, 0.005, 0.1, 8 )
-}
-
-
-//  Add some gesture flags.
-//  This enables us to document the state of our hands
-//  such as hands.left.isPointGesture,
-//  or hands.right.wasShootGesture, etc.
-
-;[ 
-
-	'Fist',
-	'L',
-	'Pinch',
-	'Point'
-	
-].forEach( function( gesture ){
-
-	hands.left[  'is'+ gesture +'Gesture' ] = false
-	hands.left[ 'was'+ gesture +'Gesture' ] = false
-})
-
-
-//  Now we can create our “right” hand
-//  by cloning the “left” hand
-//  and also adding right-hand-specific properties.
-
-hands.right = Object.assign( {}, hands.left, {
-
-	name: 'Right',
-	jointMaterialColor: 0xCC3300,
-	jointMaterial: new THREE.MeshStandardMaterial({
-
-		color: 0xFF3300,
-		roughness: 0,
-		metalness: 0
-	}),
-	boneMaterialColor: 0x990000,
-	boneMaterial: new THREE.MeshStandardMaterial({
-
-		color: 0xCC0000,
-		roughness: 0,
-		metalness: 0
-	})
-})
-
-
-//  Great. We have a fully fleshed out “right” hand.
-//  But we hadn’t added and left-hand-specific properties
-//  to our “left” hand yet
-//  because we wanted to clone it to create the “right”.
-//  We’ve done that now,
-//  so it’s safe to add left-hand-specific properties.
-
-Object.assign( hands.left, {
-
-	name: 'Left',
-	jointMaterialColor: 0x00CC33,
-	jointMaterial: new THREE.MeshStandardMaterial({
-
-		color: 0x00FF33,
-		roughness: 0,
-		metalness: 0
-	}),
-	boneMaterialColor: 0x009900,
-	boneMaterial: new THREE.MeshStandardMaterial({
-
-		color: 0x00CC00,
-		roughness: 0,
-		metalness: 0
-	})
-})
-
-
-
-
-function setupHandMeshes(){
-	
-
-	//  For both hands
-	//  let’s make sure we remove any existing
-	//  bones or joints.
-	//  Not how easy it is in JavaScript to say 
-	// “do this action for multiple things” using Arrays.
-	//  We stick a semicolon in front as good practice
-	//  to ensure that our raw Array
-	//  is not interpreted as an object property reference.
-	//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/forEach
-
-	;[ hands.left, hands.right ]
-	.forEach( function( hand ){
-
-
-		//  We must remove bone and joint meshes
-		//  from our THREE scene.
-		//  We can just scoop up booth Arrays
-		//  and operate on them together with concat().
-		//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/concat
-
-		hand.bones
-		.concat( hand.joints )
-		.forEach( function( mesh ){
-
-			scene.remove( mesh )
-		})
-
-
-		//  Now we can assign empty Arrays
-		//  to each list.
-
-		hand.bones  = []
-		hand.joints = []
-	})
-
-	
-	const
-	createJointMesh = function( hand, index ){
-		
-		const mesh = new THREE.Mesh( 
-
-			hands.jointGeometry,
-			hand.jointMaterial
-		)
-		mesh.visible = false
-		mesh.receiveShadow = true
-		mesh.castShadow = true
-		mesh.jointIndex = index
-		scene.add( mesh )
-		hand.joints[ index ] = mesh
-	},
-	createBoneMesh = function( hand, index ){
-		
-		const mesh  = new THREE.Mesh(
-
-			hands.boneGeometry,
-			hand.boneMaterial
-		)
-		mesh.visible = false
-		mesh.receiveShadow = true
-		mesh.castShadow = true		
-		mesh.boneIndex = index
-		scene.add( mesh )
-		hand.bones[ index ] = mesh
-	}
-
-
-	//  Create a mesh for each hand joint.
-
-	for( 
-
-		let 
-		i  =  0;//XRHand.WRIST; 
-		i <= 24;//XRHand.LITTLE_PHALANX_TIP;
-		i ++ ){
-		
-		createJointMesh( hands.left,  i )
-		createJointMesh( hands.right, i )
-	}
-
-
-	//  We’ll come back to the joinConnections problem later.
-	//  For now it’s incomplete and disabled.
-
-	// for( const connection of jointConnections ){
-		
-		// createBoneMesh( hands.left,  i )
-		// createBoneMesh( hands.right, i )
-	// }
-}
-
-
-
-
-/*
-
-	Forgive me. I realize these gestures are inherently ableist. 
-	Allow me to begin with what I know and what I can test myself,
-	then once that is functional I can expand my thinking. 
-
-
-	Here’s the index map of joints provided by the WebXR Hand API.
-	Note that the metacarpals for index, middle, and ring
-	all return NULL instead of jointPoses!!
-	https://github.com/immersive-web/webxr-hand-input/blob/master/explainer.md#appendix-proposed-idl
-
-	 0 : WRIST
-	 1 : THUMB_METACARPAL
-	 2 : THUMB_PHALANX_PROXIMAL
-	 3 : THUMB_PHALANX_DISTAL
-	 4 : THUMB_PHALANX_TIP
-
-X	 5 : INDEX_METACARPAL
-	 6 : INDEX_PHALANX_PROXIMAL
-	 7 : INDEX_PHALANX_INTERMEDIATE
-	 8 : INDEX_PHALANX_DISTAL
-	 9 : INDEX_PHALANX_TIP
-
-X	10 : MIDDLE_METACARPAL
-	11 : MIDDLE_PHALANX_PROXIMAL
-	12 : MIDDLE_PHALANX_INTERMEDIATE
-	13 : MIDDLE_PHALANX_DISTAL
-	14 : MIDDLE_PHALANX_TIP
-
-X	15 : RING_METACARPAL
-	16 : RING_PHALANX_PROXIMAL
-	17 : RING_PHALANX_INTERMEDIATE
-	18 : RING_PHALANX_DISTAL
-	19 : RING_PHALANX_TIP
-
-	20 : LITTLE_METACARPAL
-	21 : LITTLE_PHALANX_PROXIMAL
-	22 : LITTLE_PHALANX_INTERMEDIATE
-	23 : LITTLE_PHALANX_DISTAL
-	24 : LITTLE_PHALANX_TIP
-
-*/
-function isFistGesture( hand ){
-
-
-	//  We will consider a fist to be
-	//  all fingers curled inward such that
-	//  the finger tips are somewhat close
-	//  to the base of the finger
-	//  and the thumb tip is near the
-	//  middle middle finger’s intermediate joint.
-	//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce
-
-	//  THESE VALUES AREN’T VERY GOOD.
-	//  Will require more experimenting
-	//  and possibly a different definition of a fist.
-
-	return [ 
-
-		'INDEX',
-		'MIDDLE',
-		'RING',
-		'LITTLE'
-
-	].reduce( function( status, fingerName ){
-
-		return status && (
-
-			hand.joints[ fingerName +'_PHALANX_TIP' ].position
-			.distanceTo(
-
-				hand.joints[ fingerName +'_PHALANX_PROXIMAL' ].position
-			
-			) < 0.04
-		)
-	}, true ) &&
-	hand.joints[ 'THUMB_PHALANX_TIP' ].distanceTo(
-
-		hand.joints[ 'MIDDLE_PHALANX_INTERMEDIATE' ]
-
-	) < 0.03
-}
-function isPinchGesture( hand ){
-	
-	const 
-	indexTip = hand.joints[ XRHand.INDEX_PHALANX_TIP ],
-	thumbTip = hand.joints[ XRHand.THUMB_PHALANX_TIP ],
-	distance = indexTip.position.distanceTo( thumbTip.position )
-	
-	return distance < 0.03
-}
-function isLGesture( hand ){
-
-	return (
-
-
-		//  Index finger is extended.
-
-		hand.joints[ XRHand.INDEX_PHALANX_TIP ].position
-		.distanceTo(
-
-			hand.joints[ XRHand.INDEX_PHALANX_PROXIMAL ].position
-
-		) > 0.05 &&
-	
-
-		//  Middle finger is curled inward,
-		//  toward the base of the thumb.
-
-		hand.joints[ XRHand.MIDDLE_PHALANX_TIP ].position
-		.distanceTo(
-
-			hand.joints[ XRHand.THUMB_METACARPAL ].position
-
-		) < 0.06 &&
-
-
-		//  We don’t really need to look for the ring finger.
-		//  You try extending it while also pointing your index!
-		//  Pinky finger is curled inward.
-
-		hand.joints[ XRHand.LITTLE_PHALANX_TIP ].position
-		.distanceTo(
-
-			hand.joints[ XRHand.LITTLE_METACARPAL ].position
-
-		) < 0.06
-	)
-}
-function isPointGesture( hand ){
-
-
-	//  Is a pointing gesture AND
-	//  the thumb tip is near the middle
-	//  of the middle finger.
-
-	return (
-
-		isLGesture( hand ) &&
-		hand.joints[ XRHand.THUMB_PHALANX_TIP ].position
-		.distanceTo(
-
-			hand.joints[ XRHand.MIDDLE_PHALANX_INTERMEDIATE ].position
-
-		) < 0.06
-	)
-}
-
-
-
-
-function updateInputSources( session, frame, referenceSpace ){
-	
-	for( let inputSource of session.inputSources ){
-		/*
-
-		Here’s a sample inputSource object:
-		{			
-			gamepad: null,
-			gripSpace: null,
-			hand: XRHand {...},
-			handedness: 'left',
-			profiles: [ 'oculus-hand', 'generic-trigger' ],
-			targetRayMode: 'gaze',
-			targetRaySpace: XRSpace
-		}
-
-		*/
-		if( inputSource.hand ){
-
-			hands[ inputSource.handedness ].joints
-			.forEach( function( mesh ){
-				
-				const jointData = inputSource.hand[ mesh.jointIndex ]
-				if( jointData ){
-
-					// console.log( 'jointData', jointData )
-					const jointPose = frame.getJointPose( jointData, referenceSpace )
-					if( jointPose ){
-					
-						// console.log( 'jointPose', jointPose )
-						mesh.visible = true
-						mesh.position.copy( jointPose.transform.position )
-						mesh.position.y += params.userHeight//  Necessary?!?
-						mesh.quaternion.copy( jointPose.transform.orientation )
-						if( jointPose.radius ){
-
-							mesh.scale.setScalar( jointPose.radius * 2 )
-						}
-						else mesh.scale.setScalar( 0.015 )
-					}
-					else mesh.visible = false
-				}
-				else mesh.visible = false
-			})
-		}//  if( inputSource.hand )
-	}//  for( let inputSource of session.inputSources )
-}
-
-
-
-
-
-
     //////////////
    //          //
   //   Loop   //
@@ -755,123 +600,50 @@ let timePrevious
 
 function loop( timeNow, frame ){
 
-	if( params.shouldPrepareVR &&
-		params.shouldPrepareHands &&
-		frame !== null && 
-		xrReferenceSpace !== null ){
-	
-		const session = renderer.xr.getSession()
-		if( session && session.inputSources ){
+	;[ hands.left, hands.right ].forEach( function( hand ){
+
+		hand.checkShapes()
+		if( hand.handedness === undefined ) hand.checkHandedness()
+		if( hand.isPointShape ){
+
+			const bolt = new Bolt(
+
+				scene,//  The bolt must know what scene to attach itself to.
+				hand, //  Used for ‘handedness’ as well as attaching some state to.
+				hand.joints[ Handy.WRIST ]//  Reference point.
+			)
 			
-			updateInputSources( session, frame, xrReferenceSpace )
-			;[ hands.left, hands.right ]
-			.forEach( function( hand ){
+			//  Yeah... You’re still upset about Bolt attaching state too hand, eh?
+			//  Me too. It’s not the right way to do business.
+			//  But I’m tired. Bolt is old code that got a quick retro fit.
+			
+			if( bolt ){
 
-
-				//  NOTE. The following code is pretty repetitive.
-				//  Probably a good idea to create custom events instead.
-				//  That way you can do something onBegan or onEnded.
-
-
-				//  Fist gesture.
-
-				hand.isFistGesture = isPinchGesture( hand )
-				if( hand.isFistGesture ){
-
-					if( !hand.wasFistGesture ){
-
-						console.log( 'Fist gesture began.' )
-						//  Your custom code here!
-						hand.wasFistGesture = true
-					}
-				}
-				else if( hand.wasFistGesture ){
-
-					console.log( 'Fist gesture ended.' )
-					//  Your custom code here!
-					hand.wasFistGesture = false
-				}
-
-
-				//  L gesture.
-
-				hand.isLGesture = isLGesture( hand )
-				if( hand.isLGesture ){
-
-					if( !hand.wasLGesture ){
-
-						console.log( 'L gesture began.' )
-						//  Your custom code here!
-						hand.wasLGesture = true
-					}
-				}
-				else if( hand.wasLGesture ){
-
-					console.log( 'L gesture ended.' )
-					//  Your custom code here!
-					hand.wasLGesture = false
-				}
-
-
-				//  Pinch gesture.
-
-				hand.isPinchGesture = isPinchGesture( hand )
-				if( hand.isPinchGesture ){
-
-					if( !hand.wasPinchGesture ){
-
-						console.log( 'Pinch gesture began.' )
-						//  Your custom code here!
-						hand.wasPinchGesture = true
-					}
-				}
-				else if( hand.wasPinchGesture ){
-
-					console.log( 'Pinch gesture ended.' )
-					//  Your custom code here!
-					hand.wasPinchGesture = false
-				}
-
-
-				//  Point gesture.
-				//  This is our main interest here.
-
-				hand.isPointGesture = isPointGesture( hand )
-				if( hand.isPointGesture ){
-
-					if( !hand.wasPointGesture ){
-
-						console.log( 'Point gesture began.' )
-						hand.jointMaterial.color.setHex( 0xFFCC00 )						
-						hand.wasPointGesture = true
-					}
-					const bolt = new Bolt( scene, hand, hand.joints[ XRHand.WRIST ], 0 )
-					if( bolt ){
-
-						// console.log( 'Shots fired!' )
-					}
-				}
-				else if( hand.wasPointGesture ){
-
-					console.log( 'Point gesture ended.' )
-					hand.jointMaterial.color.setHex( hand.jointMaterialColor )
-					hand.wasPointGesture = false
-				}
-			})
+				
+				//  Bolt has a duration throttle on it 
+				//  for how many bolts can fire
+				//  within a given amount of time.
+				//  So do not expect this 
+				//  to execute each frame.
+				
+				console.log( 'Shot fired!' )
+			}
 		}
-	}
+	})
 
 
 	//  Determine the time since last frame in SECONDS (not milliseconds).
 	//  Then perform all the animation updates based on that.
+	//  Ok -- in this case it’s only for Bolt.
 
 	if( timePrevious === undefined ) timePrevious = timeNow
 	const timeDelta = ( timeNow - timePrevious ) / 1000
 	timePrevious = timeNow
-	
-
 	Bolt.update( timeDelta )
+
+
 	renderer.render( scene, camera )
+	stats.update()
 }
 
 
@@ -889,9 +661,8 @@ function loop( timeNow, frame ){
 window.addEventListener( 'DOMContentLoaded', function(){
 
 	setupThree()
+	setupHands()
 	setupContent()
-	// setupHandMeshes()
-	console.log( 'hands', hands )
 })
 
 

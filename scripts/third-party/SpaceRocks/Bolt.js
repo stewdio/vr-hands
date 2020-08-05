@@ -1,5 +1,5 @@
 
-//  Copyright © 2017, 2018 Moar Technologies Corp. See LICENSE for details.
+//  Copyright © 2017, 2018, 2020 Moar Technologies Corp. See LICENSE for details.
 
 
 import * as THREE from '../Three/three.module.js'
@@ -7,7 +7,7 @@ import * as THREE from '../Three/three.module.js'
 
 
 
-function Bolt( scene, hand, controller, rotation ){
+function Bolt( scene, hand, joint ){
 
 
 	//  You can only shoot so many bolts per second.
@@ -15,9 +15,9 @@ function Bolt( scene, hand, controller, rotation ){
 	//  undefined and nothing happens!
 
 	const now = Date.now()
-	if( controller.lastBoltFiredAt === undefined ) controller.lastBoltFiredAt = 0
-	if( now - controller.lastBoltFiredAt < 130 ) return undefined
-	controller.lastBoltFiredAt = now
+	if( hand.lastBoltFiredAt === undefined ) hand.lastBoltFiredAt = 0
+	if( now - hand.lastBoltFiredAt < 130 ) return undefined
+	hand.lastBoltFiredAt = now
 
 
 	//  But it’s been long enough apparently, so let’s fire.
@@ -30,9 +30,18 @@ function Bolt( scene, hand, controller, rotation ){
 
 	const mesh = new THREE.Mesh( Bolt.geometry, Bolt.material )
 	mesh.rotation.x = Math.PI / -2
-	mesh.rotation.y = rotation
+
+	if( typeof hand.boltRotation === 'number' ){
+
+		hand.boltRotation += Math.PI / 16
+	}
+	else hand.boltRotation = 0
+	mesh.rotation.y = hand.boltRotation
 	this.add( mesh )
 	
+
+
+
 
 	//  Ideally I’d like to use a PointLight here but that causes a 
 	//  severe drop in FPS!
@@ -42,7 +51,7 @@ function Bolt( scene, hand, controller, rotation ){
 	// this.add( light )
 
 
-	//	First, apply our hand controller’s matrix to this bolt
+	//	First, apply our hand joint’s matrix to this bolt
 	//  so we have the correct rotation and correct-ish position.
 	//  Then, we have to subtract the position of the universe!
 	//  This is because when we fly, the universe moves, not us!
@@ -52,7 +61,7 @@ function Bolt( scene, hand, controller, rotation ){
 	//  any of that extra overhead.
 	//  Add that thing to the universe!
 
-	this.applyMatrix4( controller.matrixWorld )
+	this.applyMatrix4( joint.matrixWorld )
 
 
 	//  Need to rptate around the X axis by 90 degrees
@@ -60,14 +69,14 @@ function Bolt( scene, hand, controller, rotation ){
 	//  this works for right hand, but is exactly opposite for left hand!
 	// const tempQ = new THREE.Quaternion().setFromAxisAngle( new THREE.Vector3( 0, 1, 0 ), Math.PI / 2 )
 
-	const fix = hand.name === 'Right' ? 2 : -2
+	const fix = hand.handedness === 'right' ? 2 : -2
 
 	const tempY = new THREE.Quaternion().setFromAxisAngle( new THREE.Vector3( 0, 1, 0 ), Math.PI / fix )
 	this.quaternion.multiply( tempY )
 
 
-	// console.log( 'contrller.name', controller.name )
-	// if( controller.name === 'Right' ){
+	// console.log( 'contrller.name', joint.name )
+	// if( joint.name === 'Right' ){
 
 	// 	const temp2 = new THREE.Quaternion().setFromAxisAngle( new THREE.Vector3( 0, 0, 1 ), Math.PI )
 	// 	this.quaternion.multiply( temp2 )
@@ -101,7 +110,7 @@ function Bolt( scene, hand, controller, rotation ){
 
 
 	//  Probably a good idea if our bolt shoots in the correct
-	//  direction relative to the hand controller.
+	//  direction relative to the hand joint.
 
 	this.positionVelocity = this.getWorldDirection( new THREE.Vector3() ).normalize().multiplyScalar( -Bolt.speed )
 	this.wait = 2
