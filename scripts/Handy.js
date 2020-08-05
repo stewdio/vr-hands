@@ -125,16 +125,16 @@ const Handy = {
 
 	//  JavaScript doesn’t need classes.
 	// (You may want to read that again.)
-	//  Here we’re going to use prototypal inheritance
-	//  to glob new functionality onto an existing object.
+	//  Here we’re going to REFERENCE (not copy)
+	//  functionality from one object onto another,
 	//  eg. the ‘hand’ that we will makeHandy().
 	//  To make this process more efficient
 	//  when creating more than one hand
 	//  we’ll define the methods just once,
 	//  store them in this ‘protos’ object,
-	//  and attach them as prototypal methods
-	//  to each hand that we make handy.
-	//  https://en.wikipedia.org/wiki/Prototype-based_programming
+	//  then add REFERENCES to them on “handy” objects.
+	//  eg. hands.left.reportFingers === hands.right.reportFingers
+	//  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Working_with_Objects#Comparing_objects
 
 	protos: {},
 
