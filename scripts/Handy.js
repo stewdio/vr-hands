@@ -7,12 +7,15 @@ import * as THREE from './third-party/Three/three.module.js'
 
 
 
-// “Handy” makes it easy to define additional hand shapes
-//  as well as create boolean flags and events for them.
+//  👋 Introducing Handy.js — 
+//  a tiny shim to make defining and using hand shapes in #WebXR easy! 
+//  Built with Three.js and tested on the Oculus Quest. 
+//  Handy creates boolean flags and events for your defined hand shapes.
+
 //  You’ll need to add to the Handy.shapeNames Array 
 //  and create a corresponding checkIsMyShape() function.
-//  Check out checkIsPinchShape() as an example.
-//  See how easy that is?!
+//  Have a look at checkIsPointShape() as an example.
+//  See how easy this is?!
 
 const Handy = {
 
