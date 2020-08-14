@@ -4,6 +4,15 @@
 WebXR finger guns
 ========================================================================
 👋 Ahoy.  
+
+**NOTE! As of 10 August 2020 this project has been deprecated in favor 
+of [Handy.js](https://github.com/stewdio/handy.js).** Visit 
+[https://github.com/stewdio/handy.js](https://github.com/stewdio/handy.js)
+for the latest updates and examples!  
+  
+.  
+  
+.  
   
 I’m [Stewart](https://stewartsmith.io).
 This demo illustrates the use of the
